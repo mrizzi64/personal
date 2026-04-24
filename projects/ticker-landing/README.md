@@ -41,10 +41,41 @@ Landing informativa que muestra la cotización en tiempo real de cuatro tickers 
 1. `node server.mjs`
 2. Abrir `http://localhost:8000/` en el navegador.
 
-> El servidor expone `/api/quotes` que actúa como proxy hacia Yahoo Finance para evitar restricciones de CORS.
+> El servidor expone `/api/quotes` como proxy hacia Stooq para evitar restricciones de CORS y simular el mismo endpoint que en producción.
+
+## Pipeline de deploy (Netlify + GitHub Actions)
+- **Hosting:** Netlify publica la carpeta estática `projects/ticker-landing/app` y expone la función serverless `/.netlify/functions/quotes` (proxy a Stooq).
+- **Automatización:** GitHub Actions ejecuta `netlify deploy --prod` en cada push a `main`.
+
+### Requisitos previos
+1. Crear un sitio en Netlify conectado al repositorio (o crear uno vacío y obtener el `site_id`).
+2. Generar un token personal en Netlify (`NETLIFY_AUTH_TOKEN`).
+3. Definir secretos en el repositorio:
+   - `NETLIFY_AUTH_TOKEN`
+   - `NETLIFY_SITE_ID`
+
+### Flujo CI/CD
+1. Se hace push/merge a `main`.
+2. GitHub Actions (workflow `deploy-netlify.yml`) se dispara.
+3. Pasos del workflow:
+   - Checkout del repo.
+   - Instalación del Netlify CLI.
+   - Deploy con `netlify deploy --dir=projects/ticker-landing/app --functions=projects/ticker-landing/netlify/functions --prod`.
+4. Netlify actualiza automáticamente el sitio producción.
+
+### Archivos clave
+- `netlify.toml`: declara carpeta publicada, funciones y redirect `/api/quotes`.
+- `netlify/functions/quotes.js`: proxy serverless que consulta Stooq y devuelve JSON homogéneo.
+- `.github/workflows/deploy-netlify.yml`: workflow automatizado de deploy (requiere secretos configurados).
+
+### Verificación post-deploy
+- Ping `https://<tu-sitio>.netlify.app/api/quotes` → debe devolver JSON con 4 tickers.
+- Revisar la landing en el dominio Netlify y confirmar auto-refresh/colores.
+- Consultar logs en Netlify Functions ante errores.
 
 ## Estado actual
 - Documentación inicial creada.
 - API aprobada por Marcelo.
 - UI y lógica base implementadas (HTML/CSS/JS).
+- Pipeline Netlify definido (funciones + workflow); resta configurar secretos Netlify en el repo.
 - Pendiente: validación visual, QA y demo final.

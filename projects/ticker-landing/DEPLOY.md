@@ -7,14 +7,15 @@ Publicar la landing de cotizaciones (HTML/CSS/JS + proxy Node) en un entorno acc
 1. **Render.com / Railway / Fly.io** (Node server ligero):
    - Permiten desplegar la app Node (`server.mjs`) que sirve los estáticos y actúa como proxy.
    - Ideal si queremos mantener el proxy en producción para evitar CORS y centralizar la fuente de datos.
-2. **Vercel / Netlify (static hosting + serverless)**:
+2. **Netlify (static hosting + serverless)** ← *opción implementada*
    - Frontend estático (`app/`) deployado como assets.
-   - Función serverless/edge que implementa `/api/quotes` replicando la lógica del proxy (fetch a Stooq y retornar JSON).
+   - Función serverless (`netlify/functions/quotes.js`) que replica la lógica del proxy consultando Stooq.
+   - GitHub Actions (`.github/workflows/deploy-netlify.yml`) automatiza el deploy en cada push a `main`.
 3. **GitHub Pages + Cloudflare Worker**:
    - GitHub Pages para los archivos estáticos.
    - Cloudflare Worker para `api/quotes` que envía la consulta a Stooq y agrega CORS.
 
-Para un MVP rápido recomiendo opción 1 o 2. Dejamos abajo el procedimiento base para Render (Node complete) y Netlify (static + serverless). Ajustar según el proveedor elegido.
+Para un MVP rápido utilizamos **Netlify + GitHub Actions**. Se mantienen otros escenarios como referencia.
 
 ---
 
@@ -53,6 +54,13 @@ Para un MVP rápido recomiendo opción 1 o 2. Dejamos abajo el procedimiento bas
 ---
 
 ## Deploy en Netlify (estático + serverless)
+
+### Pipeline automatizado
+- Workflow: `.github/workflows/deploy-netlify.yml`
+- Disparador: `push` a `main`.
+- Pasos: checkout → instalar Netlify CLI → `netlify deploy --prod` (publica `app/` + funciones).
+- Requiere secretos: `NETLIFY_AUTH_TOKEN` y `NETLIFY_SITE_ID` configurados en el repositorio.
+
 
 ### Requisitos previos
 - Cuenta en Netlify y repositorio Git.
