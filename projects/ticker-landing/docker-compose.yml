@@ -1,9 +1,0 @@
-services:
-  ticker-landing:
-    build: .
-    container_name: ticker-landing
-    ports:
-      - "8080:8080"
-    environment:
-      - PORT=8080
-    restart: unless-stopped

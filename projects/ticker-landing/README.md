@@ -43,48 +43,39 @@ Landing informativa que muestra la cotización en tiempo real de cuatro tickers 
 
 > El servidor expone `/api/quotes` como proxy hacia Stooq para evitar restricciones de CORS y simular el mismo endpoint que en producción.
 
-## Pipeline de deploy (Servidor propio + Docker)
-- **Hosting principal:** contenedor Docker ejecutando `server.mjs` en el datacenter corporativo.
-- **Automatización sugerida:** GitHub Actions (`deploy-onprem.yml`) comprime el proyecto, lo transfiere por SSH y ejecuta `docker compose up -d --build` en el servidor.
+## Pipeline de deploy (Netlify + GitHub Actions)
+- **Hosting:** Netlify publica la carpeta estática `projects/ticker-landing/app` y expone la función serverless `/.netlify/functions/quotes` (proxy a Stooq).
+- **Automatización:** GitHub Actions ejecuta `netlify deploy --prod` en cada push a `main`.
 
 ### Requisitos previos
-1. Servidor con Docker y docker-compose v2 instalados.
-2. Usuario SSH con permisos para manejar contenedores.
-3. Directorio remoto donde se actualizará el proyecto (ej. `/srv/ticker-landing`).
-4. Definir secretos en GitHub:
-   - `SSH_HOST`
-   - `SSH_USER`
-   - `SSH_KEY` (clave privada en formato PEM)
-   - Opcional: `SSH_PORT`, `DEPLOY_PATH`.
+1. Crear un sitio en Netlify conectado al repositorio (o crear uno vacío y obtener el `site_id`).
+2. Generar un token personal en Netlify (`NETLIFY_AUTH_TOKEN`).
+3. Definir secretos en el repositorio:
+   - `NETLIFY_AUTH_TOKEN`
+   - `NETLIFY_SITE_ID`
 
 ### Flujo CI/CD
-1. Push/Merge a `main` dispara `deploy-onprem.yml` (también puede invocarse manualmente via *workflow_dispatch*).
-2. Pasos del workflow:
+1. Se hace push/merge a `main`.
+2. GitHub Actions (workflow `deploy-netlify.yml`) se dispara.
+3. Pasos del workflow:
    - Checkout del repo.
-   - Empaquetar `projects/ticker-landing` como `tar.gz`.
-   - Subir archivo al servidor vía `scp`.
-   - Ejecutar remoto: descomprimir y `docker compose up -d --build`.
-3. El servicio queda expuesto en el puerto configurado (por defecto 8080) listo para ser enrutado por el reverse proxy corporativo.
-
-### Ejecución manual alternativa
-```bash
-ssh usuario@servidor
-cd /ruta/al/repositorio
-docker compose up -d --build
-```
+   - Instalación del Netlify CLI.
+   - Deploy con `netlify deploy --dir=projects/ticker-landing/app --functions=projects/ticker-landing/netlify/functions --prod`.
+4. Netlify actualiza automáticamente el sitio producción.
 
 ### Archivos clave
-- `Dockerfile` y `docker-compose.yml`: definen el contenedor de producción.
-- `.github/workflows/deploy-onprem.yml`: pipeline automatizado on-premises.
-- `server.mjs`: sirve estáticos y actúa como proxy `/api/quotes`.
+- `netlify.toml`: declara carpeta publicada, funciones y redirect `/api/quotes`.
+- `netlify/functions/quotes.js`: proxy serverless que consulta Stooq y devuelve JSON homogéneo.
+- `.github/workflows/deploy-netlify.yml`: workflow automatizado de deploy (requiere secretos configurados).
 
-## Opcional: Netlify como ambiente externo
-Se mantiene soportado el deploy a Netlify (`netlify.toml`, `netlify/functions/quotes.js`, workflow `deploy-netlify.yml`) por si se necesita un entorno de demo público. Requiere configurar los secretos `NETLIFY_AUTH_TOKEN` y `NETLIFY_SITE_ID`.
+### Verificación post-deploy
+- Ping `https://<tu-sitio>.netlify.app/api/quotes` → debe devolver JSON con 4 tickers.
+- Revisar la landing en el dominio Netlify y confirmar auto-refresh/colores.
+- Consultar logs en Netlify Functions ante errores.
 
 ## Estado actual
 - Documentación inicial creada.
 - API aprobada por Marcelo.
 - UI y lógica base implementadas (HTML/CSS/JS).
-- Pipeline on-premises definido (Docker + GitHub Actions opcional).
-- Pipeline Netlify documentado como alternativa.
+- Pipeline Netlify definido (funciones + workflow); resta configurar secretos Netlify en el repo.
 - Pendiente: validación visual, QA y demo final.
