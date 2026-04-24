@@ -2,7 +2,7 @@ const DEFAULT_TICKERS = ["NVDA", "PLTR", "QQQ", "SPY"];
 const STORAGE_KEY = "ticker-landing:selected-tickers";
 
 const API_URL = "/api/quotes";
-const REFRESH_INTERVAL_MS = 60_000; // 1 minuto
+const REFRESH_INTERVAL_MS = 300_000; // 5 minutos
 const tickerContainer = document.getElementById("tickers");
 const refreshBtn = document.getElementById("refresh-btn");
 const addTickerBtn = document.getElementById("add-ticker-btn");

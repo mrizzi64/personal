@@ -28,7 +28,7 @@ Landing informativa que muestra la cotización en tiempo real de cuatro tickers 
 1. Los cuatro tickers aparecen en pantalla con su precio y variación.
 2. La variación se muestra numérica, con el color correspondiente (verde si >0, rojo si <0, azul si =0).
 3. Se indica "Última actualización" con fecha y hora legibles basadas en el `regularMarketTime` o la hora del fetch.
-4. El frontend refresca datos automáticamente (ej. cada 60 segundos) y puede forzar un refresh manual opcional.
+4. El frontend refresca datos automáticamente cada 5 minutos y permite forzar un refresh manual opcional.
 5. En caso de error de red o API, la interfaz muestra un mensaje de error y ofrece reintentar.
 
 ## Roles y entregables

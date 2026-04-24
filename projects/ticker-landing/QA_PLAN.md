@@ -20,7 +20,7 @@ Validar que la landing de cotizaciones muestra información correcta para NVDA, 
 | F-04 | Variación neutra     | Simular `close == previousClose`.                                             | Texto y borde en azul, cambio mostrado como `0.00` o `+0.00`. |
 | F-05 | Fecha/Hora           | Verificar campo "Actualizado".                                               | Muestra fecha legible + "(UTC)" y se refresca tras nuevos datos. |
 | C-01 | Botón Actualizar     | Pulsar "Actualizar ahora".                                                   | Botón muestra estado "Actualizando...", vuelve a su estado original al terminar y refresca datos. |
-| C-02 | Auto-refresh         | Esperar >60s o manipular temporizador.                                        | Datos vuelven a solicitarse, se actualiza sello de hora. |
+| C-02 | Auto-refresh         | Esperar >5 min o manipular temporizador.                                      | Datos vuelven a solicitarse, se actualiza sello de hora. |
 | C-03 | Agregar ticker       | Presionar "Agregar ticker" e ingresar símbolo válido.                        | Nuevo ticker aparece, fetch correcto, persiste tras refrescar página. |
 | C-04 | Validación de input  | Ingresar símbolos inválidos o duplicados.                                     | Sistema muestra alerta de error y no modifica la lista. |
 | C-05 | Quitar ticker        | Pulsar "Quitar" en una tarjeta existente.                                    | Tarjeta desaparece, lista persiste tras refresco. |
@@ -37,7 +37,7 @@ Validar que la landing de cotizaciones muestra información correcta para NVDA, 
 - [ ] Página carga cuatro tarjetas sin errores.
 - [ ] Colores y símbolos cambian según variación (verde/rojo/azul).
 - [ ] Botón "Actualizar ahora" funciona y bloquea múltiples clics mientras fetch ⇢ true.
-- [ ] Auto-refresh ejecutado al menos una vez durante la sesión de prueba.
+- [ ] Auto-refresh ejecutado al menos una vez durante la sesión de prueba (5 min).
 - [ ] Agregar ticker permite ingresar un símbolo válido y persiste tras reload.
 - [ ] Quitar ticker elimina la tarjeta y muestra estado vacío cuando corresponde.
 - [ ] Link "Ver detalles" abre Yahoo Finance en nueva pestaña.
