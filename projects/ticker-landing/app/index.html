@@ -10,9 +10,12 @@
     <header class="page-header">
       <div class="header-content">
         <h1>Cotizaciones destacadas</h1>
-        <p>Datos actualizados en tiempo real de NVDA, PLTR, QQQ y SPY.</p>
+        <p>Seleccioná y seguí los tickers que más te interesan en tiempo real.</p>
       </div>
-      <button id="refresh-btn" type="button" class="refresh-btn">Actualizar ahora</button>
+      <div class="header-actions">
+        <button id="add-ticker-btn" type="button" class="action-btn add-btn">Agregar ticker</button>
+        <button id="refresh-btn" type="button" class="action-btn refresh-btn">Actualizar ahora</button>
+      </div>
     </header>
 
     <main>
@@ -32,7 +35,10 @@
     <template id="ticker-template">
       <article class="ticker-card">
         <header>
-          <h2 class="ticker-symbol"></h2>
+          <div class="ticker-heading">
+            <h2 class="ticker-symbol"></h2>
+            <button type="button" class="remove-ticker-btn" aria-label="Quitar ticker">Quitar</button>
+          </div>
           <span class="ticker-name" aria-live="polite"></span>
         </header>
         <div class="price-line">
@@ -44,6 +50,9 @@
           <span class="change-percent"></span>
         </div>
         <p class="updated-at"></p>
+        <div class="ticker-actions">
+          <a class="details-link" href="#" target="_blank" rel="noopener noreferrer">Ver detalles</a>
+        </div>
       </article>
     </template>
 
@@ -51,6 +60,13 @@
       <div class="error-state" role="alert">
         <p>No pudimos obtener los datos en este momento.</p>
         <p>Revisa tu conexión o vuelve a intentar más tarde.</p>
+      </div>
+    </template>
+
+    <template id="empty-template">
+      <div class="empty-state" role="status">
+        <p>No hay tickers seleccionados.</p>
+        <p>Usá "Agregar ticker" para incorporar uno nuevo.</p>
       </div>
     </template>
 

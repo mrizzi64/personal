@@ -18,10 +18,11 @@
 - [x] Implementar refresco automático (cada 60s) + botón de refresco manual.
 - [x] Manejo de errores (mensaje visible, opción de reintento).
 - [x] Crear servidor local (`server.mjs`) que actúe como proxy y sirva archivos estáticos.
+- [x] Gestionar tickers dinámicamente (agregar/quitar, estado vacío, persistencia local, link a detalle).
 
 ## 3. QA
-- [ ] Plan de pruebas (valores positivos, negativos, cero, errores de API).
-- [ ] Ejecutar pruebas manuales y registrar resultados.
+- [x] Plan de pruebas (valores positivos, negativos, cero, errores de API) — actualizado 2026-04-24 con casos de gestión dinámica.
+- [ ] Ejecutar pruebas manuales y registrar resultados (incluye casos C-03 ⇢ C-07 y captura de evidencias).
 - [ ] Validar accesibilidad básica (contraste de colores, etiquetas, responsividad mínima).
 - [ ] Aprobar release o documentar pendientes.
 

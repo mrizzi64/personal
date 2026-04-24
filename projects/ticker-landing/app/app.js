@@ -1,14 +1,70 @@
-const TICKERS = ["NVDA", "PLTR", "QQQ", "SPY"];
+const DEFAULT_TICKERS = ["NVDA", "PLTR", "QQQ", "SPY"];
+const STORAGE_KEY = "ticker-landing:selected-tickers";
 
 const API_URL = "/api/quotes";
 const REFRESH_INTERVAL_MS = 60_000; // 1 minuto
 const tickerContainer = document.getElementById("tickers");
 const refreshBtn = document.getElementById("refresh-btn");
+const addTickerBtn = document.getElementById("add-ticker-btn");
 const lastUpdatedEl = document.getElementById("last-updated");
 
 const tickerTemplate = document.getElementById("ticker-template");
 const errorTemplate = document.getElementById("error-template");
+const emptyTemplate = document.getElementById("empty-template");
 let refreshTimerId = null;
+let selectedTickers = loadTickers();
+
+function loadTickers() {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      return [...DEFAULT_TICKERS];
+    }
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return [...DEFAULT_TICKERS];
+    }
+    return parsed
+      .map((value) => normalizeTicker(value))
+      .filter(Boolean);
+  } catch {
+    return [...DEFAULT_TICKERS];
+  }
+}
+
+function saveTickers() {
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(selectedTickers));
+}
+
+function normalizeTicker(value) {
+  if (typeof value !== "string") return null;
+  const cleaned = value.trim().toUpperCase();
+  return cleaned || null;
+}
+
+function isValidTicker(value) {
+  return /^[A-Z0-9.-]{1,10}$/.test(value);
+}
+
+function buildDetailsUrl(symbol) {
+  const normalized = encodeURIComponent(symbol);
+  return `https://finance.yahoo.com/quote/${normalized}`;
+}
+
+function renderEmptyState() {
+  tickerContainer.innerHTML = "";
+  const emptyNode = emptyTemplate.content.cloneNode(true);
+  tickerContainer.appendChild(emptyNode);
+  lastUpdatedEl.textContent = "Última actualización: --";
+}
+
+function updateRefreshButtonState() {
+  const hasTickers = selectedTickers.length > 0;
+  refreshBtn.disabled = !hasTickers;
+  if (!hasTickers) {
+    refreshBtn.textContent = "Actualizar ahora";
+  }
+}
 
 function formatCurrency(value) {
   if (value == null || Number.isNaN(value)) {
@@ -64,13 +120,32 @@ function applyChangeStyles(element, changeClass) {
 function renderTickers(quotes) {
   tickerContainer.innerHTML = "";
 
-  if (!Array.isArray(quotes) || quotes.length === 0) {
-    const errorNode = errorTemplate.content.cloneNode(true);
-    tickerContainer.appendChild(errorNode);
+  if (selectedTickers.length === 0) {
+    renderEmptyState();
     return;
   }
 
-  quotes.forEach((quote) => {
+  const quoteMap = new Map();
+  if (Array.isArray(quotes)) {
+    quotes.forEach((quote) => {
+      if (quote?.symbol) {
+        quoteMap.set(quote.symbol.toUpperCase(), quote);
+      }
+    });
+  }
+
+  let renderedCount = 0;
+
+  selectedTickers.forEach((symbol) => {
+    const quote = quoteMap.get(symbol) ?? {
+      symbol,
+      name: "",
+      close: null,
+      previousClose: null,
+      date: null,
+      time: null,
+    };
+
     const template = tickerTemplate.content.cloneNode(true);
 
     const card = template.querySelector(".ticker-card");
@@ -80,9 +155,11 @@ function renderTickers(quotes) {
     const changeValueEl = template.querySelector(".change-value");
     const changePercentEl = template.querySelector(".change-percent");
     const updatedAtEl = template.querySelector(".updated-at");
+    const removeBtn = template.querySelector(".remove-ticker-btn");
+    const detailsLink = template.querySelector(".details-link");
 
-    const price = quote.close;
-    const prevClose = quote.previousClose;
+    const price = Number.isFinite(quote.close) ? quote.close : null;
+    const prevClose = Number.isFinite(quote.previousClose) ? quote.previousClose : null;
     const change = price != null && prevClose != null ? price - prevClose : null;
     const changePercent = change != null && prevClose
       ? (change / prevClose) * 100
@@ -90,11 +167,11 @@ function renderTickers(quotes) {
 
     const lastUpdateDate = parseTimestamp(quote.date, quote.time);
 
-    symbolEl.textContent = quote.symbol;
+    symbolEl.textContent = symbol;
     nameEl.textContent = quote.name || "";
     priceEl.textContent = formatCurrency(price);
 
-    const changeClass = determineChangeClass(change || 0);
+    const changeClass = determineChangeClass(change ?? 0);
 
     if (change != null) {
       changeValueEl.textContent = `${change >= 0 ? "+" : ""}${change.toFixed(2)}`;
@@ -114,10 +191,67 @@ function renderTickers(quotes) {
     card.classList.remove("positive", "negative", "neutral");
     card.classList.add(changeClass);
 
-    updatedAtEl.textContent = `Actualizado: ${formatDisplayDate(lastUpdateDate)} (UTC)`;
+    if (lastUpdateDate) {
+      updatedAtEl.textContent = `Actualizado: ${formatDisplayDate(lastUpdateDate)} (UTC)`;
+    } else {
+      updatedAtEl.textContent = "Datos no disponibles";
+    }
+
+    removeBtn.addEventListener("click", () => {
+      removeTicker(symbol);
+    });
+
+    detailsLink.href = buildDetailsUrl(symbol);
 
     tickerContainer.appendChild(template);
+    renderedCount += 1;
   });
+
+  if (renderedCount === 0) {
+    const errorNode = errorTemplate.content.cloneNode(true);
+    tickerContainer.appendChild(errorNode);
+  }
+}
+
+function removeTicker(symbol) {
+  selectedTickers = selectedTickers.filter((value) => value !== symbol);
+  saveTickers();
+  updateRefreshButtonState();
+
+  if (selectedTickers.length === 0) {
+    renderEmptyState();
+    return;
+  }
+
+  fetchQuotes();
+}
+
+function promptAndAddTicker() {
+  const input = window.prompt("Ingresá el ticker que querés seguir (ej: NVDA)");
+  if (!input) {
+    return;
+  }
+
+  const normalized = normalizeTicker(input);
+  if (!normalized) {
+    window.alert("No ingresaste ningún valor.");
+    return;
+  }
+
+  if (!isValidTicker(normalized)) {
+    window.alert("El ticker puede contener letras, números, punto o guion y hasta 10 caracteres.");
+    return;
+  }
+
+  if (selectedTickers.includes(normalized)) {
+    window.alert("Ese ticker ya está en la lista.");
+    return;
+  }
+
+  selectedTickers = [...selectedTickers, normalized];
+  saveTickers();
+  updateRefreshButtonState();
+  fetchQuotes();
 }
 
 function updateLastUpdatedLabel(date = new Date()) {
@@ -128,7 +262,13 @@ function updateLastUpdatedLabel(date = new Date()) {
 }
 
 async function fetchQuotes() {
-  const url = `${API_URL}?symbols=${TICKERS.join(",")}`;
+  if (selectedTickers.length === 0) {
+    renderEmptyState();
+    updateRefreshButtonState();
+    return;
+  }
+
+  const url = `${API_URL}?symbols=${selectedTickers.join(",")}`;
 
   try {
     refreshBtn.disabled = true;
@@ -150,7 +290,7 @@ async function fetchQuotes() {
     tickerContainer.appendChild(errorNode);
     lastUpdatedEl.textContent = "Última actualización: error";
   } finally {
-    refreshBtn.disabled = false;
+    updateRefreshButtonState();
     refreshBtn.textContent = "Actualizar ahora";
   }
 }
@@ -166,5 +306,10 @@ refreshBtn.addEventListener("click", () => {
   fetchQuotes();
 });
 
+addTickerBtn.addEventListener("click", () => {
+  promptAndAddTicker();
+});
+
+updateRefreshButtonState();
 fetchQuotes();
 scheduleAutoRefresh();

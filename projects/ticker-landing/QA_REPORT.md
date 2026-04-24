@@ -16,8 +16,10 @@ Se confirmó que el proxy local responde con datos válidos desde Stooq y que la
 ## Observaciones
 - Los valores devueltos corresponden al cierre del 23-abr-2026 (horario 22:00:19). Para validación visual se recomienda abrir la landing con el servidor activo en la próxima sesión.
 - Aún no se ejercitaron casos F-02/F-03/F-04 (variaciones), R-01 (responsive) ni E-01/E-02 (errores). Quedan como tareas para el siguiente ciclo de QA.
+- Nueva funcionalidad pendiente de verificación formal: agregar/quitar tickers, persistencia en `localStorage`, estado vacío y enlaces a Yahoo Finance. QA debe cubrirlos en la próxima ronda.
 
 ## Próximos pasos
-1. Ejecutar el resto de la matriz de pruebas del `QA_PLAN.md` (en especial cambios de color y manejo de errores).
-2. Capturar screenshots de la UI para evidencias visuales.
+1. Ejecutar el resto de la matriz de pruebas del `QA_PLAN.md` (incluye nuevos casos C-03 ⇢ C-07 sobre agregar/quitar tickers y links).
+2. Capturar screenshots de la UI para evidencias visuales (estado normal, agregado manual, estado vacío y mensaje de error).
 3. Considerar datos mockeados para forzar variaciones positiva/negativa sin depender del mercado real.
+4. Registrar resultados en una nueva sección del reporte con fecha de ejecución y símbolos utilizados.
