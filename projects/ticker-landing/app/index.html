@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cotizaciones destacadas</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="page-header">
+      <div class="header-content">
+        <h1>Cotizaciones destacadas</h1>
+        <p>Datos actualizados en tiempo real de NVDA, PLTR, QQQ y SPY.</p>
+      </div>
+      <button id="refresh-btn" type="button" class="refresh-btn">Actualizar ahora</button>
+    </header>
+
+    <main>
+      <section id="tickers" class="ticker-grid" aria-live="polite"></section>
+    </main>
+
+    <footer class="page-footer">
+      <p>
+        Datos provistos por Yahoo Finance &mdash;
+        <span id="last-updated">Última actualización: --</span>
+      </p>
+      <p class="caption">
+        Si el servicio no responde, intenta nuevamente más tarde o pulsa "Actualizar ahora".
+      </p>
+    </footer>
+
+    <template id="ticker-template">
+      <article class="ticker-card">
+        <header>
+          <h2 class="ticker-symbol"></h2>
+          <span class="ticker-name" aria-live="polite"></span>
+        </header>
+        <div class="price-line">
+          <span class="price" aria-label="Precio actual"></span>
+        </div>
+        <div class="change-line" aria-live="polite">
+          <span class="change-label">Variación:</span>
+          <span class="change-value"></span>
+          <span class="change-percent"></span>
+        </div>
+        <p class="updated-at"></p>
+      </article>
+    </template>
+
+    <template id="error-template">
+      <div class="error-state" role="alert">
+        <p>No pudimos obtener los datos en este momento.</p>
+        <p>Revisa tu conexión o vuelve a intentar más tarde.</p>
+      </div>
+    </template>
+
+    <script src="app.js" type="module"></script>
+  </body>
+</html>
