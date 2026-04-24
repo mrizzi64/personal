@@ -1,160 +1,112 @@
 # Deploy – Ticker Landing
 
 ## Objetivo
-Publicar la landing de cotizaciones (HTML/CSS/JS + proxy Node) en un entorno accesible públicamente.
-
-## Opciones de despliegue
-1. **Render.com / Railway / Fly.io** (Node server ligero):
-   - Permiten desplegar la app Node (`server.mjs`) que sirve los estáticos y actúa como proxy.
-   - Ideal si queremos mantener el proxy en producción para evitar CORS y centralizar la fuente de datos.
-2. **Netlify (static hosting + serverless)** ← *opción implementada*
-   - Frontend estático (`app/`) deployado como assets.
-   - Función serverless (`netlify/functions/quotes.js`) que replica la lógica del proxy consultando Stooq.
-   - GitHub Actions (`.github/workflows/deploy-netlify.yml`) automatiza el deploy en cada push a `main`.
-3. **GitHub Pages + Cloudflare Worker**:
-   - GitHub Pages para los archivos estáticos.
-   - Cloudflare Worker para `api/quotes` que envía la consulta a Stooq y agrega CORS.
-
-Para un MVP rápido utilizamos **Netlify + GitHub Actions**. Se mantienen otros escenarios como referencia.
+Publicar la landing de cotizaciones (HTML/CSS/JS + proxy Node) en infraestructura corporativa, garantizando control sobre datos y cumplimiento de políticas internas. Se documentan alternativas secundarias (Render/Netlify) por si se requiere un ambiente de contingencia.
 
 ---
 
-## Deploy en Render (Node completo)
+## Panorama de opciones
+1. **Servidor propio (on-premises) con Docker** ← *Implementado*
+   - Artefactos: `Dockerfile` + `docker-compose.yml`.
+   - Ejecuta el servidor Node (`server.mjs`) que sirve la UI y el endpoint `/api/quotes` (proxy Stooq).
+   - Compatible con reverse proxies existentes (Nginx/HAProxy/Traefik) para TLS y control de acceso.
+2. **Render.com / Railway / Fly.io** (Node service) – alternativa de nube pública manteniendo el mismo servidor Node.
+3. **Netlify (static + serverless)** – despliegue rápido de referencia (frontend estático + función serverless). Manteniendo documentación por si se necesita un ambiente externo temporal.
+4. **GitHub Pages + Cloudflare Worker** – solo referencia.
 
-### Requisitos previos
-- Cuenta en Render.
-- Repositorio Git con el proyecto (incluyendo `server.mjs`, `app/`, etc.).
-
-### Pasos
-1. **Configurar repo**
-   - Confirmar que el proxy se ejecute con `node server.mjs`.
-   - Verificar que el puerto se lea desde `process.env.PORT` (ya soportado en `server.mjs`).
-2. **Crear servicio web en Render**
-   - Ingresar a Render → New → Web Service.
-   - Conectar el repositorio (GitHub, GitLab o Bitbucket).
-   - Seleccionar la rama (`main`) y establecer:
-     - **Environment:** Node.
-     - **Build command:** `npm install` (si se agregan dependencias) o dejar vacío si no hay package.json.
-     - **Start command:** `node server.mjs`.
-   - Free tier suele ser suficiente (ver límites de uso según plan).
-3. **Deploy**
-   - Render instalará dependencias (si existen) y ejecutará `node server.mjs`.
-   - Confirmar en logs que aparece `Servidor escuchando en http://...` (Render asigna un dominio propio).
-4. **Probar**
-   - Acceder a `https://<tu-servicio>.onrender.com/`.
-   - Verificar que la landing carga y `/api/quotes` responde JSON.
-5. **Config adicional**
-   - Si Stooq impone rate limits, considerar cache interno en `server.mjs`.
-   - Opcional: configurar horario de dormancia del servicio o health check.
-
-### Notas Render
-- Si el repo no tiene `package.json`, Render crea una instalación Node simple. Para mayor control se puede agregar un `package.json` con script start.
-- Render requiere que el servidor escuche en `0.0.0.0` y use el `PORT` definido.
+El camino oficial será **Docker on-premises**. Las opciones 2 y 3 quedan como respaldo.
 
 ---
 
-## Deploy en Netlify (estático + serverless)
+## Despliegue on-premises con Docker
 
-### Pipeline automatizado
-- Workflow: `.github/workflows/deploy-netlify.yml`
-- Disparador: `push` a `main`.
-- Pasos: checkout → instalar Netlify CLI → `netlify deploy --prod` (publica `app/` + funciones).
-- Requiere secretos: `NETLIFY_AUTH_TOKEN` y `NETLIFY_SITE_ID` configurados en el repositorio.
+### Requisitos
+- Servidor Linux (bare metal o VM) con Docker Engine ≥ 20 y docker-compose v2.
+- Acceso SSH desde el entorno CI/CD (opcional) o despliegue manual.
+- Puerto corporativo disponible (por defecto 8080) y posibilidad de publicar detrás de un reverse proxy interno.
 
-
-### Requisitos previos
-- Cuenta en Netlify y repositorio Git.
-- Netlify CLI (opcional para pruebas locales de serverless).
-
-### Estructura recomendada
+### Estructura relevante
 ```
 projects/ticker-landing/
-├── app/               # front-end (index.html, styles.css, app.js)
-├── netlify/functions/
-│   └── quotes.js      # función serverless (proxy Stooq)
-├── netlify.toml
+├── Dockerfile
+├── docker-compose.yml
+├── server.mjs
+├── app/
 └── ...
 ```
 
-### Configuración
-1. **Crear `netlify/functions/quotes.js`**
-   ```js
-   export const handler = async (event) => {
-     const symbols = event.queryStringParameters.symbols || "NVDA,PLTR,QQQ,SPY";
-     const stooqSymbols = symbols
-       .split(",")
-       .map((s) => s.trim().toUpperCase())
-       .filter(Boolean)
-       .map((s) => (s.endsWith(".US") ? s : `${s}.US`))
-       .join("+");
+### Pasos manuales
+1. Clonar el repositorio en el servidor (o sincronizar artefactos con rsync/scp).
+2. Ingresar a `projects/ticker-landing/`.
+3. Ejecutar `docker compose up -d --build`.
+4. Verificar logs: `docker compose logs -f`.
+5. Validar acceso: `curl http://<host>:8080/api/quotes` → debe responder JSON con 4 tickers.
+6. Configurar reverse proxy corporativo para exponer el servicio vía HTTPS (ej. `/stocks`).
+7. Registrar el endpoint y URL interna en la documentación operativa.
 
-     const apiUrl = `https://stooq.com/q/l/?s=${stooqSymbols}&f=snt1d1pc&h&e=csv`;
+### CI/CD sugerido (GitHub Actions + SSH)
+Archivo recomendado: `.github/workflows/deploy-onprem.yml`.
 
-     try {
-       const response = await fetch(apiUrl, {
-         headers: { "User-Agent": "Mozilla/5.0 (TickerLanding/1.0)" },
-       });
-       if (!response.ok) {
-         throw new Error(`Stooq respondió ${response.status}`);
-       }
+Flujo:
+1. `push` a `main` dispara el workflow.
+2. Acciones:
+   - Checkout del repositorio.
+   - (Opcional) Construir la imagen y guardarla como artefacto.
+   - Copiar archivos actualizados al servidor via `scp` o `rsync`.
+   - Ejecutar remoto `docker compose up -d --build`.
+3. Notificar resultados.
 
-       const body = await response.text();
-       // reutilizar parseCsvQuotes del server actual o replicar lógica aquí
-       // ...
-       return {
-         statusCode: 200,
-         headers: { "Access-Control-Allow-Origin": "*" },
-         body: JSON.stringify({ quotes }),
-       };
-     } catch (error) {
-       return {
-         statusCode: 502,
-         headers: { "Access-Control-Allow-Origin": "*" },
-         body: JSON.stringify({ error: "No se pudo obtener datos", details: error.message }),
-       };
-     }
-   };
-   ```
-2. **`netlify.toml`**
-   ```toml
-   [build]
-   command = ""
-   publish = "projects/ticker-landing/app"
+Secretos requeridos:
+- `SSH_HOST` (hostname/IP del servidor en el datacenter).
+- `SSH_USER` (usuario con permisos Docker).
+- `SSH_KEY` (clave privada en formato PEM).
+- Opcional: `SSH_PORT`, `TARGET_DIR`, `DOCKER_CONTEXT`.
 
-   [functions]
-   directory = "projects/ticker-landing/netlify/functions"
+Se incluye un workflow de ejemplo en `.github/workflows/deploy-onprem.yml` que usa `appleboy/ssh-action` para copiar y desplegar.
 
-   [[redirects]]
-   from = "/api/quotes"
-   to = "/.netlify/functions/quotes"
-   status = 200
-  ```
-3. **Deploy**
-   - Conectar el repositorio en Netlify.
-   - Asegurarse de que `app/app.js` apunte a `/api/quotes` (ya está).
-   - Deploy manual vía CLI: `netlify deploy --prod` (opcional).
-4. **Probar**
-   - Navegar al dominio generado por Netlify.
-   - Confirmar que la landing y `/api/quotes` (función) funcionan.
-
-### Notas Netlify
-- La función se ejecuta en Node 18/20 según configuración de Netlify.
-- Respetar límites de 125k invocaciones/mes en plan free.
-- Posible optimización: cachear respuesta en Netlify Edge Cache con cabeceras `Cache-Control`.
+### Checklist operativa
+- [ ] Docker compose en ejecución (`docker ps` muestra `ticker-landing`).
+- [ ] Reverse proxy con certificado TLS emitido por la CA corporativa.
+- [ ] Monitorización configurada (logs Docker → syslog/ELK, health check interno).
+- [ ] Plan de backup/snapshot de la VM o infraestructura donde corra el contenedor.
+- [ ] Documentar credenciales y rutas en el runbook del datacenter.
 
 ---
 
-## Checklist de Deploy (genérica)
-- [ ] Repositorio limpio (`git status --short` sin cambios pendientes en área de deploy).
-- [ ] README actualizado con instrucciones de ejecución.
-- [ ] Definir variables de entorno necesarias (si en el futuro usamos APIs con API key).
-- [ ] Pruebas QA pasadas y reporte guardado.
-- [ ] Pipeline de build/documentado (Render/Netlify/otro) configurado.
-- [ ] URL de staging/producción anotada en `DEPLOY.md` una vez creado.
-- [ ] Verificación post-deploy: respuesta 200 en landing y endpoint `/api/quotes`.
+## Deploy en Netlify (opcional)
+
+Se mantiene como alternativa cloud para entornos temporales o demos públicas.
+
+- Workflow: `.github/workflows/deploy-netlify.yml`.
+- Requiere secretos `NETLIFY_AUTH_TOKEN` y `NETLIFY_SITE_ID`.
+- Publica `projects/ticker-landing/app` y la función `netlify/functions/quotes.js` (proxy Stooq).
+
+Pasos generales:
+1. Configurar sitio en Netlify (vacío o vinculado al repo) y obtener `site_id`.
+2. Añadir los secretos en GitHub.
+3. Hacer push a `main` → Netlify CLI despliega automáticamente.
+4. Validar `https://<sitio>.netlify.app/` y `.../api/quotes`.
+
+Notas:
+- Revisar límites del plan free de Netlify (invocaciones de funciones, ancho de banda).
+- Se recomienda habilitar protección mediante password o IP allowlist si se usa como entorno externo.
+
+---
+
+## Deploy en Render (referencia)
+
+Se conserva la guía previa (servicio Node simple) para ocasiones donde se necesite un hosting gestionado con soporte de procesos largos. Pasos descritos en la sección original.
+
+---
+
+## Checklist general antes de desplegar
+- [ ] `git status` limpio y QA report actualizado.
+- [ ] Variables de entorno y secretos definidas según ambiente.
+- [ ] Scripts/archivos de despliegue probados en staging.
+- [ ] Registro de la versión desplegada (commit hash + fecha) en el runbook.
+- [ ] Alarmas/monitoreo habilitados.
 
 ## Mantenimiento futuro
-- Establecer un cron para refrescar dependencias (si se añaden).
-- Implementar logs y alertas básicas (Render logs, Netlify analytics, etc.).
-- Definir estrategia de rollback (p.ej. revertir a commit anterior y redeploy).
-- Considerar tests automatizados antes de cada deploy (CI).
+- Programar actualización de dependencias base (imagen Node) y parches de seguridad.
+- Considerar agregar tests automatizados en CI antes de desplegar.
+- Documentar procedimiento de rollback (ej. `docker compose down && docker compose up` con versión anterior / revertir commit).
