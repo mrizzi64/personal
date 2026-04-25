@@ -7,30 +7,34 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <header class="page-header">
-      <div class="header-content">
-        <h1>Cotizaciones destacadas</h1>
-        <p>Seleccioná y seguí los tickers que más te interesan en tiempo real.</p>
-      </div>
-      <div class="header-actions">
-        <button id="add-ticker-btn" type="button" class="action-btn add-btn">Agregar ticker</button>
-        <button id="refresh-btn" type="button" class="action-btn refresh-btn">Actualizar ahora</button>
-      </div>
-    </header>
+    <div class="ambient-glow" aria-hidden="true"></div>
+    <div class="page-container">
+      <header class="page-header">
+        <div class="header-content">
+          <span class="header-badge">Panel en vivo</span>
+          <h1>Cotizaciones destacadas</h1>
+          <p>Seleccioná y seguí los tickers que más te interesan en tiempo real.</p>
+        </div>
+        <div class="header-actions">
+          <button id="add-ticker-btn" type="button" class="action-btn add-btn">Agregar ticker</button>
+          <button id="refresh-btn" type="button" class="action-btn refresh-btn">Actualizar ahora</button>
+        </div>
+      </header>
 
-    <main>
-      <section id="tickers" class="ticker-grid" aria-live="polite"></section>
-    </main>
+      <main>
+        <section id="tickers" class="ticker-grid" aria-live="polite"></section>
+      </main>
 
-    <footer class="page-footer">
-      <p>
-        Datos provistos por Yahoo Finance &mdash;
-        <span id="last-updated">Última actualización: --</span>
-      </p>
-      <p class="caption">
-        Si el servicio no responde, intenta nuevamente más tarde o pulsa "Actualizar ahora".
-      </p>
-    </footer>
+      <footer class="page-footer">
+        <p>
+          Datos provistos por Yahoo Finance &mdash;
+          <span id="last-updated">Última actualización: --</span>
+        </p>
+        <p class="caption">
+          Si el servicio no responde, intenta nuevamente más tarde o pulsa "Actualizar ahora".
+        </p>
+      </footer>
+    </div>
 
     <template id="ticker-template">
       <article class="ticker-card">

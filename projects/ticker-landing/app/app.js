@@ -2,6 +2,7 @@ const DEFAULT_TICKERS = ["NVDA", "PLTR", "QQQ", "SPY"];
 
 const API_URL = "/api/quotes";
 const TICKERS_API_URL = "/api/tickers";
+const LOCAL_STORAGE_KEY = "ticker-landing.symbols";
 const REFRESH_INTERVAL_MS = 300_000; // 5 minutos
 const tickerContainer = document.getElementById("tickers");
 const refreshBtn = document.getElementById("refresh-btn");
@@ -47,6 +48,58 @@ function sanitizeSymbolList(rawSymbols) {
   return result;
 }
 
+function hasLocalStorage() {
+  try {
+    return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+  } catch (error) {
+    console.warn("No se pudo acceder a localStorage", error);
+    return false;
+  }
+}
+
+function loadLocalSymbols() {
+  if (!hasLocalStorage()) {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw);
+    const sanitized = sanitizeSymbolList(parsed);
+    return sanitized !== null ? sanitized : null;
+  } catch (error) {
+    console.warn("No se pudo leer símbolos desde localStorage", error);
+    return null;
+  }
+}
+
+function saveLocalSymbols(symbols) {
+  if (!hasLocalStorage()) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(symbols));
+  } catch (error) {
+    console.warn("No se pudo guardar símbolos en localStorage", error);
+  }
+}
+
+function clearLocalSymbols() {
+  if (!hasLocalStorage()) {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(LOCAL_STORAGE_KEY);
+  } catch (error) {
+    console.warn("No se pudo limpiar símbolos en localStorage", error);
+  }
+}
+
 function buildDetailsUrl(symbol) {
   const normalized = encodeURIComponent(symbol);
   return `https://finance.yahoo.com/quote/${normalized}`;
@@ -87,6 +140,8 @@ async function loadTickersConfig() {
   isSyncingTickers = true;
   updateActionButtonsState();
 
+  let resolvedSymbols = null;
+
   try {
     const response = await fetch(TICKERS_API_URL, { cache: "no-store" });
     if (!response.ok) {
@@ -97,23 +152,29 @@ async function loadTickersConfig() {
     const sanitized = sanitizeSymbolList(data?.symbols);
 
     if (sanitized !== null) {
-      setSelectedTickers(sanitized);
-      return sanitized;
+      resolvedSymbols = sanitized;
+    } else {
+      console.warn("Configuración de tickers inválida desde API, se buscarán valores locales");
     }
-
-    console.warn("Configuración de tickers inválida, se utilizarán los valores por defecto");
-    const fallback = [...DEFAULT_TICKERS];
-    setSelectedTickers(fallback);
-    return fallback;
   } catch (error) {
     console.error("No se pudo obtener la configuración de tickers", error);
-    const fallback = [...DEFAULT_TICKERS];
-    setSelectedTickers(fallback);
-    return fallback;
   } finally {
     isSyncingTickers = false;
     updateActionButtonsState();
   }
+
+  if (resolvedSymbols === null) {
+    const localSymbols = loadLocalSymbols();
+    if (localSymbols !== null) {
+      resolvedSymbols = localSymbols;
+    } else {
+      resolvedSymbols = [...DEFAULT_TICKERS];
+    }
+  }
+
+  saveLocalSymbols(resolvedSymbols);
+  setSelectedTickers(resolvedSymbols);
+  return resolvedSymbols;
 }
 
 async function persistTickersConfig(symbols) {
@@ -134,6 +195,13 @@ async function persistTickersConfig(symbols) {
       body: JSON.stringify({ symbols: sanitizedInput }),
     });
 
+    if (response.status === 501) {
+      console.info("Persistencia remota no disponible, se usará almacenamiento local");
+      saveLocalSymbols(sanitizedInput);
+      setSelectedTickers(sanitizedInput);
+      return sanitizedInput;
+    }
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -141,11 +209,14 @@ async function persistTickersConfig(symbols) {
     const data = await response.json();
     const sanitizedResponse = sanitizeSymbolList(data?.symbols);
     const effective = sanitizedResponse !== null ? sanitizedResponse : sanitizedInput;
+    saveLocalSymbols(effective);
     setSelectedTickers(effective);
     return effective;
   } catch (error) {
     console.error("No se pudo guardar la configuración de tickers", error);
-    throw error;
+    saveLocalSymbols(sanitizedInput);
+    setSelectedTickers(sanitizedInput);
+    return sanitizedInput;
   } finally {
     isSyncingTickers = false;
     updateActionButtonsState();

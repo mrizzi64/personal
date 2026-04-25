@@ -45,41 +45,21 @@ Landing informativa que muestra la cotización en tiempo real de un conjunto con
 
 > El servidor expone `/api/quotes` como proxy hacia Stooq para evitar restricciones de CORS y simular el mismo endpoint que en producción. Además, publica `/api/tickers` (GET/POST) para leer y guardar la configuración persistente en `data/tickers.json`.
 
-## Pipeline de deploy (Netlify + GitHub Actions)
-- **Hosting:** Netlify publica la carpeta estática `projects/ticker-landing/app` y expone la función serverless `/.netlify/functions/quotes` (proxy a Stooq).
-- **Automatización:** GitHub Actions ejecuta `netlify deploy --prod` en cada push a `main`.
+## Deploy
 
-### Requisitos previos
-1. Crear un sitio en Netlify conectado al repositorio (o crear uno vacío y obtener el `site_id`).
-2. Generar un token personal en Netlify (`NETLIFY_AUTH_TOKEN`).
-3. Definir secretos en el repositorio:
-   - `NETLIFY_AUTH_TOKEN`
-   - `NETLIFY_SITE_ID`
+### Vercel (recomendado)
+- `vercel.json` publica `app/` como sitio estático y enruta `/api/quotes` & `/api/tickers` a las funciones Node en `api/`.
+- El endpoint `/api/tickers` usa Vercel KV (Upstash) si están presentes las variables `KV_REST_API_URL`, `KV_REST_API_TOKEN` y `KV_REST_API_READ_ONLY_TOKEN`; en caso contrario el frontend persiste la lista en `localStorage` por usuario.
+- Config pasos detallados en `DEPLOY.md` (seleccionar root `projects/ticker-landing`, definir env vars y usar `vercel --prod`).
 
-### Flujo CI/CD
-1. Se hace push/merge a `main`.
-2. GitHub Actions (workflow `deploy-netlify.yml`) se dispara.
-3. Pasos del workflow:
-   - Checkout del repo.
-   - Instalación del Netlify CLI.
-   - Deploy con `netlify deploy --dir=projects/ticker-landing/app --functions=projects/ticker-landing/netlify/functions --prod`.
-4. Netlify actualiza automáticamente el sitio producción.
-
-### Archivos clave
-- `netlify.toml`: declara carpeta publicada, funciones y redirect `/api/quotes`.
-- `netlify/functions/quotes.js`: proxy serverless que consulta Stooq y devuelve JSON homogéneo.
-- `.github/workflows/deploy-netlify.yml`: workflow automatizado de deploy (requiere secretos configurados).
-
-### Verificación post-deploy
-- Ping `https://<tu-sitio>.netlify.app/api/quotes` → debe devolver JSON con 4 tickers.
-- Revisar la landing en el dominio Netlify y confirmar auto-refresh/colores.
-- Consultar logs en Netlify Functions ante errores.
-- _(Temporal)_ La persistencia compartida sólo está disponible en el servidor local; el endpoint `/api/tickers` aún no fue portado a Netlify.
+### Netlify (legado)
+- Se mantiene la configuración previa (`netlify.toml`, `netlify/functions/quotes.js`, workflow `deploy-netlify.yml`).
+- Útil como plan B, pero la ruta `/api/tickers` no tiene persistencia compartida en Netlify.
 
 ## Estado actual
 - Documentación inicial creada.
 - API aprobada por Marcelo.
 - UI y lógica base implementadas (HTML/CSS/JS) con gestión dinámica de tickers.
-- Persistencia local de la configuración (`data/tickers.json`) disponible en `server.mjs` (falta llevarla a la función serverless de Netlify).
-- Pipeline Netlify definido (funciones + workflow); resta configurar secretos Netlify en el repo.
+- Persistencia compartida habilitada vía `/api/tickers` (Vercel + KV opcional); el frontend cae a `localStorage` cuando no hay backend configurado.
+- Pipeline Vercel documentado y listo para conectar al repo; la configuración de Netlify queda como alternativa.
 - Pendiente: validación visual, QA y demo final.

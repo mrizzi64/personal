@@ -7,11 +7,15 @@ Publicar la landing de cotizaciones (HTML/CSS/JS + proxy Node) en un entorno acc
 1. **Render.com / Railway / Fly.io** (Node server ligero):
    - Permiten desplegar la app Node (`server.mjs`) que sirve los estáticos y actúa como proxy.
    - Ideal si queremos mantener el proxy en producción para evitar CORS y centralizar la fuente de datos.
-2. **Netlify (static hosting + serverless)** ← *opción implementada*
+2. **Vercel (estático + serverless + KV opcional)** ← *opción recomendada actual*
+   - Publica `app/` como sitio estático.
+   - Rutas `/api/quotes` y `/api/tickers` corren como funciones serverless (Node 18) definidas en `projects/ticker-landing/api/`.
+   - Persistencia compartida opcional via Vercel KV (Upstash). Sin KV se utiliza localStorage del navegador como fallback.
+3. **Netlify (static hosting + serverless)** ← opción previa
    - Frontend estático (`app/`) deployado como assets.
    - Función serverless (`netlify/functions/quotes.js`) que replica la lógica del proxy consultando Stooq.
    - GitHub Actions (`.github/workflows/deploy-netlify.yml`) automatiza el deploy en cada push a `main`.
-3. **GitHub Pages + Cloudflare Worker**:
+4. **GitHub Pages + Cloudflare Worker**:
    - GitHub Pages para los archivos estáticos.
    - Cloudflare Worker para `api/quotes` que envía la consulta a Stooq y agrega CORS.
 
@@ -50,6 +54,53 @@ Para un MVP rápido utilizamos **Netlify + GitHub Actions**. Se mantienen otros 
 ### Notas Render
 - Si el repo no tiene `package.json`, Render crea una instalación Node simple. Para mayor control se puede agregar un `package.json` con script start.
 - Render requiere que el servidor escuche en `0.0.0.0` y use el `PORT` definido.
+
+---
+
+## Deploy en Vercel (estático + serverless)
+
+### Requisitos previos
+- Cuenta en Vercel (plan hobby suficiente).
+- Repositorio Git conectado.
+- (Opcional) Add-on **Vercel KV** para persistir la lista compartida de tickers.
+
+### Estructura utilizada
+```
+projects/ticker-landing/
+├── app/                # assets estáticos (index.html, styles.css, app.js)
+├── api/                # funciones serverless desplegadas en /api
+│   ├── quotes.js
+│   └── tickers.js
+├── data/               # sólo usada en desarrollo local
+└── vercel.json         # configuración de builds y rutas
+```
+
+### Pasos
+1. **Crear proyecto en Vercel**
+   - Importar el repositorio desde GitHub/GitLab.
+   - En *Root Directory* seleccionar `projects/ticker-landing`.
+   - Build command: dejar vacío (deployment puramente estático).
+   - Output directory: `app` (lo toma del `vercel.json`).
+   - Node.js version: 18.x (default).
+2. **Configurar variables de entorno**
+   - `DEFAULT_TICKERS` *(opcional)*: lista separada por comas, e.g. `NVDA,PLTR,QQQ,SPY`.
+   - Para persistencia compartida, instalar la integración **Vercel KV** (Upstash) y copiar automáticamente:
+     - `KV_REST_API_URL`
+     - `KV_REST_API_TOKEN`
+     - `KV_REST_API_READ_ONLY_TOKEN`
+     - (opcional) `KV_TICKERS_KEY` para personalizar el nombre de la clave (default `ticker-landing:symbols`).
+   - Si no se configura KV, la API responderá con los valores por defecto y el frontend usará `localStorage` para cada usuario.
+3. **Deploy**
+   - Primer deploy manual con `npx vercel --prod` (desde `projects/ticker-landing`) o usando el botón “Deploy” en el dashboard.
+   - Habilitar auto-deploy en cada push a `main` para mantener el sitio actualizado.
+4. **Verificación post-deploy**
+   - Revisar `https://<project>.vercel.app/` y confirmar que la interfaz carga.
+   - Hacer `GET https://<project>.vercel.app/api/quotes?symbols=NVDA,PLTR` y validar el JSON.
+   - Si KV está configurado, ejecutar un `POST` a `/api/tickers` con `{ "symbols": ["NVDA","MSFT"] }` y confirmar que responde `200`.
+   - Sin KV, al intentar guardar tickers nuevos el frontend almacenará la lista en `localStorage` y la API devolverá `501`.
+5. **Nota sobre desarrollo local**
+   - Para emular Vercel: `cd projects/ticker-landing && npx vercel dev`.
+   - Definir variables de entorno en `.env.local` (Vercel CLI las reconoce) si se quiere probar KV localmente.
 
 ---
 
