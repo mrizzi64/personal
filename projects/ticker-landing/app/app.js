@@ -1,7 +1,7 @@
 const DEFAULT_TICKERS = ["NVDA", "PLTR", "QQQ", "SPY"];
-const STORAGE_KEY = "ticker-landing:selected-tickers";
 
 const API_URL = "/api/quotes";
+const TICKERS_API_URL = "/api/tickers";
 const REFRESH_INTERVAL_MS = 300_000; // 5 minutos
 const tickerContainer = document.getElementById("tickers");
 const refreshBtn = document.getElementById("refresh-btn");
@@ -11,30 +11,11 @@ const lastUpdatedEl = document.getElementById("last-updated");
 const tickerTemplate = document.getElementById("ticker-template");
 const errorTemplate = document.getElementById("error-template");
 const emptyTemplate = document.getElementById("empty-template");
+
 let refreshTimerId = null;
-let selectedTickers = loadTickers();
-
-function loadTickers() {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return [...DEFAULT_TICKERS];
-    }
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      return [...DEFAULT_TICKERS];
-    }
-    return parsed
-      .map((value) => normalizeTicker(value))
-      .filter(Boolean);
-  } catch {
-    return [...DEFAULT_TICKERS];
-  }
-}
-
-function saveTickers() {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(selectedTickers));
-}
+let selectedTickers = [];
+let isSyncingTickers = false;
+let isFetchingQuotes = false;
 
 function normalizeTicker(value) {
   if (typeof value !== "string") return null;
@@ -44,6 +25,26 @@ function normalizeTicker(value) {
 
 function isValidTicker(value) {
   return /^[A-Z0-9.-]{1,10}$/.test(value);
+}
+
+function sanitizeSymbolList(rawSymbols) {
+  if (!Array.isArray(rawSymbols)) {
+    return null;
+  }
+
+  const unique = new Set();
+  const result = [];
+
+  rawSymbols.forEach((value) => {
+    const normalized = normalizeTicker(value);
+    if (!normalized) return;
+    if (!isValidTicker(normalized)) return;
+    if (unique.has(normalized)) return;
+    unique.add(normalized);
+    result.push(normalized);
+  });
+
+  return result;
 }
 
 function buildDetailsUrl(symbol) {
@@ -58,11 +59,96 @@ function renderEmptyState() {
   lastUpdatedEl.textContent = "Última actualización: --";
 }
 
-function updateRefreshButtonState() {
+function setSelectedTickers(symbols) {
+  selectedTickers = symbols;
+  updateActionButtonsState();
+}
+
+function updateActionButtonsState() {
   const hasTickers = selectedTickers.length > 0;
-  refreshBtn.disabled = !hasTickers;
+  const disableRefresh = isSyncingTickers || isFetchingQuotes || !hasTickers;
+  const disableAdd = isSyncingTickers || isFetchingQuotes;
+
+  refreshBtn.disabled = disableRefresh;
+  addTickerBtn.disabled = disableAdd;
+
   if (!hasTickers) {
     refreshBtn.textContent = "Actualizar ahora";
+  }
+
+  if (isSyncingTickers || isFetchingQuotes) {
+    refreshBtn.setAttribute("aria-busy", "true");
+  } else {
+    refreshBtn.removeAttribute("aria-busy");
+  }
+}
+
+async function loadTickersConfig() {
+  isSyncingTickers = true;
+  updateActionButtonsState();
+
+  try {
+    const response = await fetch(TICKERS_API_URL, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    const sanitized = sanitizeSymbolList(data?.symbols);
+
+    if (sanitized !== null) {
+      setSelectedTickers(sanitized);
+      return sanitized;
+    }
+
+    console.warn("Configuración de tickers inválida, se utilizarán los valores por defecto");
+    const fallback = [...DEFAULT_TICKERS];
+    setSelectedTickers(fallback);
+    return fallback;
+  } catch (error) {
+    console.error("No se pudo obtener la configuración de tickers", error);
+    const fallback = [...DEFAULT_TICKERS];
+    setSelectedTickers(fallback);
+    return fallback;
+  } finally {
+    isSyncingTickers = false;
+    updateActionButtonsState();
+  }
+}
+
+async function persistTickersConfig(symbols) {
+  const sanitizedInput = sanitizeSymbolList(symbols);
+  if (sanitizedInput === null) {
+    throw new Error("Listado de tickers inválido");
+  }
+
+  isSyncingTickers = true;
+  updateActionButtonsState();
+
+  try {
+    const response = await fetch(TICKERS_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ symbols: sanitizedInput }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    const sanitizedResponse = sanitizeSymbolList(data?.symbols);
+    const effective = sanitizedResponse !== null ? sanitizedResponse : sanitizedInput;
+    setSelectedTickers(effective);
+    return effective;
+  } catch (error) {
+    console.error("No se pudo guardar la configuración de tickers", error);
+    throw error;
+  } finally {
+    isSyncingTickers = false;
+    updateActionButtonsState();
   }
 }
 
@@ -213,20 +299,21 @@ function renderTickers(quotes) {
   }
 }
 
-function removeTicker(symbol) {
-  selectedTickers = selectedTickers.filter((value) => value !== symbol);
-  saveTickers();
-  updateRefreshButtonState();
-
-  if (selectedTickers.length === 0) {
-    renderEmptyState();
+async function removeTicker(symbol) {
+  const nextTickers = selectedTickers.filter((value) => value !== symbol);
+  if (nextTickers.length === selectedTickers.length) {
     return;
   }
 
-  fetchQuotes();
+  try {
+    await persistTickersConfig(nextTickers);
+    await fetchQuotes();
+  } catch (error) {
+    window.alert("No pudimos actualizar la lista de tickers. Intentá nuevamente.");
+  }
 }
 
-function promptAndAddTicker() {
+async function promptAndAddTicker() {
   const input = window.prompt("Ingresá el ticker que querés seguir (ej: NVDA)");
   if (!input) {
     return;
@@ -248,10 +335,14 @@ function promptAndAddTicker() {
     return;
   }
 
-  selectedTickers = [...selectedTickers, normalized];
-  saveTickers();
-  updateRefreshButtonState();
-  fetchQuotes();
+  const nextTickers = [...selectedTickers, normalized];
+
+  try {
+    await persistTickersConfig(nextTickers);
+    await fetchQuotes();
+  } catch (error) {
+    window.alert("No pudimos guardar el ticker nuevo. Intentá nuevamente.");
+  }
 }
 
 function updateLastUpdatedLabel(date = new Date()) {
@@ -264,15 +355,21 @@ function updateLastUpdatedLabel(date = new Date()) {
 async function fetchQuotes() {
   if (selectedTickers.length === 0) {
     renderEmptyState();
-    updateRefreshButtonState();
+    updateActionButtonsState();
+    return;
+  }
+
+  if (isFetchingQuotes) {
     return;
   }
 
   const url = `${API_URL}?symbols=${selectedTickers.join(",")}`;
 
   try {
-    refreshBtn.disabled = true;
+    isFetchingQuotes = true;
     refreshBtn.textContent = "Actualizando...";
+    updateActionButtonsState();
+
     const response = await fetch(url);
 
     if (!response.ok) {
@@ -290,8 +387,9 @@ async function fetchQuotes() {
     tickerContainer.appendChild(errorNode);
     lastUpdatedEl.textContent = "Última actualización: error";
   } finally {
-    updateRefreshButtonState();
+    isFetchingQuotes = false;
     refreshBtn.textContent = "Actualizar ahora";
+    updateActionButtonsState();
   }
 }
 
@@ -303,13 +401,21 @@ function scheduleAutoRefresh() {
 }
 
 refreshBtn.addEventListener("click", () => {
-  fetchQuotes();
+  if (!refreshBtn.disabled) {
+    fetchQuotes();
+  }
 });
 
 addTickerBtn.addEventListener("click", () => {
-  promptAndAddTicker();
+  if (!addTickerBtn.disabled) {
+    promptAndAddTicker();
+  }
 });
 
-updateRefreshButtonState();
-fetchQuotes();
-scheduleAutoRefresh();
+updateActionButtonsState();
+
+(async function init() {
+  await loadTickersConfig();
+  await fetchQuotes();
+  scheduleAutoRefresh();
+})();

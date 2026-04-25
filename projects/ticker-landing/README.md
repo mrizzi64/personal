@@ -1,12 +1,13 @@
 # Ticker Landing – Bolsa de Valores
 
-Landing informativa que muestra la cotización en tiempo real de cuatro tickers bursátiles: NVDA, PLTR, QQQ y SPY.
+Landing informativa que muestra la cotización en tiempo real de un conjunto configurable de tickers bursátiles (por defecto: NVDA, PLTR, QQQ y SPY).
 
 ## Objetivo
 - Mostrar el precio actual.
 - Mostrar la diferencia con respecto al cierre anterior.
 - Colorear la diferencia según el signo (verde: sube, rojo: baja, azul: igual).
 - Indicar la fecha y hora de la última actualización.
+- Permitir que la lista de tickers sea configurable por el usuario y persistente en el backend local.
 - Refrescar los datos periódicamente para mantener la información actualizada.
 
 ## API elegida
@@ -25,11 +26,12 @@ Landing informativa que muestra la cotización en tiempo real de cuatro tickers 
   - `c` (precio de cierre actual)
 
 ## Criterios de aceptación
-1. Los cuatro tickers aparecen en pantalla con su precio y variación.
+1. La lista de tickers persistida en el backend se renderiza con precio y variación (por defecto NVDA, PLTR, QQQ y SPY; se permiten listas vacías o personalizadas).
 2. La variación se muestra numérica, con el color correspondiente (verde si >0, rojo si <0, azul si =0).
 3. Se indica "Última actualización" con fecha y hora legibles basadas en el `regularMarketTime` o la hora del fetch.
 4. El frontend refresca datos automáticamente cada 5 minutos y permite forzar un refresh manual opcional.
-5. En caso de error de red o API, la interfaz muestra un mensaje de error y ofrece reintentar.
+5. La configuración de tickers es editable desde la UI (agregar/quitar) y queda disponible para cualquier cliente que abra la landing.
+6. En caso de error de red o API, la interfaz muestra un mensaje de error y ofrece reintentar.
 
 ## Roles y entregables
 - **Coordinador:** backlog, documentación, seguimiento y QA final.
@@ -41,7 +43,7 @@ Landing informativa que muestra la cotización en tiempo real de cuatro tickers 
 1. `node server.mjs`
 2. Abrir `http://localhost:8000/` en el navegador.
 
-> El servidor expone `/api/quotes` como proxy hacia Stooq para evitar restricciones de CORS y simular el mismo endpoint que en producción.
+> El servidor expone `/api/quotes` como proxy hacia Stooq para evitar restricciones de CORS y simular el mismo endpoint que en producción. Además, publica `/api/tickers` (GET/POST) para leer y guardar la configuración persistente en `data/tickers.json`.
 
 ## Pipeline de deploy (Netlify + GitHub Actions)
 - **Hosting:** Netlify publica la carpeta estática `projects/ticker-landing/app` y expone la función serverless `/.netlify/functions/quotes` (proxy a Stooq).
@@ -72,10 +74,12 @@ Landing informativa que muestra la cotización en tiempo real de cuatro tickers 
 - Ping `https://<tu-sitio>.netlify.app/api/quotes` → debe devolver JSON con 4 tickers.
 - Revisar la landing en el dominio Netlify y confirmar auto-refresh/colores.
 - Consultar logs en Netlify Functions ante errores.
+- _(Temporal)_ La persistencia compartida sólo está disponible en el servidor local; el endpoint `/api/tickers` aún no fue portado a Netlify.
 
 ## Estado actual
 - Documentación inicial creada.
 - API aprobada por Marcelo.
-- UI y lógica base implementadas (HTML/CSS/JS).
+- UI y lógica base implementadas (HTML/CSS/JS) con gestión dinámica de tickers.
+- Persistencia local de la configuración (`data/tickers.json`) disponible en `server.mjs` (falta llevarla a la función serverless de Netlify).
 - Pipeline Netlify definido (funciones + workflow); resta configurar secretos Netlify en el repo.
 - Pendiente: validación visual, QA y demo final.
