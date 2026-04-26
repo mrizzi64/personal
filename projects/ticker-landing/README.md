@@ -49,7 +49,7 @@ Landing informativa que muestra la cotización en tiempo real de un conjunto con
 
 ### Vercel (recomendado)
 - `vercel.json` publica `app/` como sitio estático y enruta `/api/quotes` & `/api/tickers` a las funciones Node en `api/`.
-- El endpoint `/api/tickers` usa Vercel KV (Upstash) si están presentes las variables `KV_REST_API_URL`, `KV_REST_API_TOKEN` y `KV_REST_API_READ_ONLY_TOKEN`; en caso contrario el frontend persiste la lista en `localStorage` por usuario.
+- El endpoint `/api/tickers` acepta dos backends de persistencia compartida: Vercel KV (Upstash) o Vercel Blob; si ninguno está configurado, la UI guarda la lista en `localStorage` de cada usuario.
 - Config pasos detallados en `DEPLOY.md` (seleccionar root `projects/ticker-landing`, definir env vars y usar `vercel --prod`).
 
 ### Netlify (legado)
@@ -60,6 +60,6 @@ Landing informativa que muestra la cotización en tiempo real de un conjunto con
 - Documentación inicial creada.
 - API aprobada por Marcelo.
 - UI y lógica base implementadas (HTML/CSS/JS) con gestión dinámica de tickers.
-- Persistencia compartida habilitada vía `/api/tickers` (Vercel + KV opcional); el frontend cae a `localStorage` cuando no hay backend configurado.
+- Persistencia compartida habilitada vía `/api/tickers` (Vercel + KV o Blob opcional); el frontend cae a `localStorage` cuando no hay backend configurado.
 - Pipeline Vercel documentado y listo para conectar al repo; la configuración de Netlify queda como alternativa.
 - Pendiente: validación visual, QA y demo final.

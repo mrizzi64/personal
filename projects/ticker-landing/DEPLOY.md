@@ -7,10 +7,10 @@ Publicar la landing de cotizaciones (HTML/CSS/JS + proxy Node) en un entorno acc
 1. **Render.com / Railway / Fly.io** (Node server ligero):
    - Permiten desplegar la app Node (`server.mjs`) que sirve los estáticos y actúa como proxy.
    - Ideal si queremos mantener el proxy en producción para evitar CORS y centralizar la fuente de datos.
-2. **Vercel (estático + serverless + KV opcional)** ← *opción recomendada actual*
+2. **Vercel (estático + serverless + KV/Blob opcional)** ← *opción recomendada actual*
    - Publica `app/` como sitio estático.
    - Rutas `/api/quotes` y `/api/tickers` corren como funciones serverless (Node 18) definidas en `projects/ticker-landing/api/`.
-   - Persistencia compartida opcional via Vercel KV (Upstash). Sin KV se utiliza localStorage del navegador como fallback.
+   - Persistencia compartida opcional via Vercel KV (Upstash) **o** Vercel Blob. Si no hay ninguna de las dos, la UI usa `localStorage` por usuario como fallback.
 3. **Netlify (static hosting + serverless)** ← opción previa
    - Frontend estático (`app/`) deployado como assets.
    - Función serverless (`netlify/functions/quotes.js`) que replica la lógica del proxy consultando Stooq.
@@ -84,20 +84,26 @@ projects/ticker-landing/
    - Node.js version: 18.x (default).
 2. **Configurar variables de entorno**
    - `DEFAULT_TICKERS` *(opcional)*: lista separada por comas, e.g. `NVDA,PLTR,QQQ,SPY`.
-   - Para persistencia compartida, instalar la integración **Vercel KV** (Upstash) y copiar automáticamente:
-     - `KV_REST_API_URL`
-     - `KV_REST_API_TOKEN`
-     - `KV_REST_API_READ_ONLY_TOKEN`
-     - (opcional) `KV_TICKERS_KEY` para personalizar el nombre de la clave (default `ticker-landing:symbols`).
-   - Si no se configura KV, la API responderá con los valores por defecto y el frontend usará `localStorage` para cada usuario.
+   - Persistencia compartida (elegí una de las opciones, podés habilitar ambas si querés redundancia):
+     - **Vercel KV (Upstash)** → crea el store desde *Storage · KV* y Vercel inyecta automáticamente:
+       - `KV_REST_API_URL`
+       - `KV_REST_API_TOKEN`
+       - `KV_REST_API_READ_ONLY_TOKEN`
+       - (opcional) `KV_TICKERS_KEY` para personalizar el nombre de la clave (default `ticker-landing:symbols`).
+     - **Vercel Blob** → desde *Storage · Blob* creá un store privado, conectalo al proyecto y usá:
+       - `BLOB_URL`
+       - `BLOB_READ_WRITE_TOKEN`
+       - (opcional) `BLOB_READ_ONLY_TOKEN`
+       - (opcional) `BLOB_TICKERS_KEY` para definir el nombre del archivo (default `ticker-landing/tickers.json`).
+   - Si no se configura KV ni Blob, la API devolverá los símbolos por defecto y el frontend usará `localStorage` per-user.
 3. **Deploy**
    - Primer deploy manual con `npx vercel --prod` (desde `projects/ticker-landing`) o usando el botón “Deploy” en el dashboard.
    - Habilitar auto-deploy en cada push a `main` para mantener el sitio actualizado.
 4. **Verificación post-deploy**
    - Revisar `https://<project>.vercel.app/` y confirmar que la interfaz carga.
    - Hacer `GET https://<project>.vercel.app/api/quotes?symbols=NVDA,PLTR` y validar el JSON.
-   - Si KV está configurado, ejecutar un `POST` a `/api/tickers` con `{ "symbols": ["NVDA","MSFT"] }` y confirmar que responde `200`.
-   - Sin KV, al intentar guardar tickers nuevos el frontend almacenará la lista en `localStorage` y la API devolverá `501`.
+   - Si configuraste KV o Blob, ejecutar un `POST` a `/api/tickers` con `{ "symbols": ["NVDA","MSFT"] }` y confirmar que responde `200`.
+   - Sin KV ni Blob, al intentar guardar tickers nuevos el frontend almacenará la lista en `localStorage` y la API devolverá `501`.
 5. **Nota sobre desarrollo local**
    - Para emular Vercel: `cd projects/ticker-landing && npx vercel dev`.
    - Definir variables de entorno en `.env.local` (Vercel CLI las reconoce) si se quiere probar KV localmente.

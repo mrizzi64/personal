@@ -168,7 +168,9 @@ async function loadTickersConfig() {
   const localSymbols = loadLocalSymbols();
   let resolvedSymbols;
 
-  if (apiPersistence === "kv" && apiSymbols !== null) {
+  const remoteHasPersistence = apiPersistence === "kv" || apiPersistence === "blob";
+
+  if (remoteHasPersistence && apiSymbols !== null) {
     resolvedSymbols = apiSymbols;
   } else if (localSymbols !== null && localSymbols.length > 0) {
     resolvedSymbols = localSymbols;
@@ -217,7 +219,7 @@ async function persistTickersConfig(symbols) {
     const persistence = typeof data?.persistence === "string" ? data.persistence : null;
     const effective = sanitizedResponse !== null ? sanitizedResponse : sanitizedInput;
 
-    if (persistence === "kv") {
+    if (persistence === "kv" || persistence === "blob") {
       saveLocalSymbols(effective);
     } else {
       console.info("Persistencia remota no confirmada, se usará almacenamiento local");
