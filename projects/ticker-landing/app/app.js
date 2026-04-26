@@ -140,7 +140,8 @@ async function loadTickersConfig() {
   isSyncingTickers = true;
   updateActionButtonsState();
 
-  let resolvedSymbols = null;
+  let apiSymbols = null;
+  let apiPersistence = null;
 
   try {
     const response = await fetch(TICKERS_API_URL, { cache: "no-store" });
@@ -152,7 +153,8 @@ async function loadTickersConfig() {
     const sanitized = sanitizeSymbolList(data?.symbols);
 
     if (sanitized !== null) {
-      resolvedSymbols = sanitized;
+      apiSymbols = sanitized;
+      apiPersistence = typeof data?.persistence === "string" ? data.persistence : null;
     } else {
       console.warn("Configuración de tickers inválida desde API, se buscarán valores locales");
     }
@@ -163,13 +165,17 @@ async function loadTickersConfig() {
     updateActionButtonsState();
   }
 
-  if (resolvedSymbols === null) {
-    const localSymbols = loadLocalSymbols();
-    if (localSymbols !== null) {
-      resolvedSymbols = localSymbols;
-    } else {
-      resolvedSymbols = [...DEFAULT_TICKERS];
-    }
+  const localSymbols = loadLocalSymbols();
+  let resolvedSymbols;
+
+  if (apiPersistence === "kv" && apiSymbols !== null) {
+    resolvedSymbols = apiSymbols;
+  } else if (localSymbols !== null && localSymbols.length > 0) {
+    resolvedSymbols = localSymbols;
+  } else if (apiSymbols !== null) {
+    resolvedSymbols = apiSymbols;
+  } else {
+    resolvedSymbols = [...DEFAULT_TICKERS];
   }
 
   saveLocalSymbols(resolvedSymbols);
@@ -208,8 +214,16 @@ async function persistTickersConfig(symbols) {
 
     const data = await response.json();
     const sanitizedResponse = sanitizeSymbolList(data?.symbols);
+    const persistence = typeof data?.persistence === "string" ? data.persistence : null;
     const effective = sanitizedResponse !== null ? sanitizedResponse : sanitizedInput;
-    saveLocalSymbols(effective);
+
+    if (persistence === "kv") {
+      saveLocalSymbols(effective);
+    } else {
+      console.info("Persistencia remota no confirmada, se usará almacenamiento local");
+      saveLocalSymbols(effective);
+    }
+
     setSelectedTickers(effective);
     return effective;
   } catch (error) {
